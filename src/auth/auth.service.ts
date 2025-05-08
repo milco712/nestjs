@@ -4,6 +4,7 @@ import {UsersModel} from "../users/entities/users.entity";
 import {HASH_ROUNDS, JWT_SECRET} from "./const/auth.const";
 import {UsersService} from "../users/users.service";
 import * as bcrypt from "bcrypt";
+import {RegisterUserDto} from "./dto/register-user.dto";
 
 @Injectable()
 export class AuthService {
@@ -13,7 +14,7 @@ export class AuthService {
     ) {
     }
     // 1) 계정생성: email, nickname, password로 계정 생성하고, accessToken와 refreshToken 반환
-    async regiserWithEmail(user: Pick<UsersModel, 'nickname' | 'email' | 'password'>){
+    async regiserWithEmail(user: RegisterUserDto){
         const hash = await bcrypt.hash(user.password, HASH_ROUNDS);
         const newUser = await this.usersService.createUser({...user, password: hash});
         return this.returnToken(newUser);

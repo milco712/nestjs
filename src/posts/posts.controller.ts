@@ -1,4 +1,17 @@
-import {Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put, Request, UseGuards} from '@nestjs/common';
+import {
+  Body, ClassSerializerInterceptor,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Put,
+  Request,
+  UseGuards,
+  UseInterceptors
+} from '@nestjs/common';
 import { PostsService } from './posts.service';
 import {AccessTokenGuard} from "../auth/guard/bearer-token.guard";
 import {UsersModel} from "../users/entities/users.entity";
