@@ -7,7 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
-  Put,
+  Put, Query,
   Request,
   UseGuards,
   UseInterceptors
@@ -18,6 +18,7 @@ import {UsersModel} from "../users/entities/users.entity";
 import {User} from "../users/decorator/user.decorator";
 import {CreatePostDto} from "./dto/create-post.dto";
 import {UpdatePostDto} from "./dto/update-post.dto";
+import {PaginatePostDto} from "./dto/paginate-post.dto";
 
 @Controller('posts')
 export class PostsController {
@@ -25,8 +26,17 @@ export class PostsController {
   constructor(private readonly postsService: PostsService) {}
 
   @Get()
-  getPosts() {
-    return this.postsService.getAllPosts()
+  getPosts(
+      @Query() query: PaginatePostDto
+  ) {
+    return this.postsService.paginatePosts(query)
+  }
+
+  @Post('random')
+  @UseGuards(AccessTokenGuard)
+  async postPostsRandom(@User('id') userId: number,) {
+    await this.postsService.generatePosts(userId)
+    return true;
   }
 
   @Get(':id')
