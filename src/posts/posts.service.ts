@@ -5,9 +5,10 @@ import {PostsModel} from "./entities/posts.entity";
 import {CreatePostDto} from "./dto/create-post.dto";
 import {UpdatePostDto} from "./dto/update-post.dto";
 import {PaginatePostDto} from "./dto/paginate-post.dto";
-import {HOST, PROTOCOL} from "../common/const/env.const";
 import {FindOptionsWhere} from "typeorm/find-options/FindOptionsWhere";
 import {CommonService} from "../common/common.service";
+import {ConfigService} from "@nestjs/config";
+import {ENV_HOST_KEY, ENV_PROTOCOL_KEY} from "../common/const/env-keys.const";
 
 @Injectable()
 export class PostsService {
@@ -15,6 +16,7 @@ export class PostsService {
         @InjectRepository(PostsModel) // db와 연결된 레포지토리(도구) 주입(필요 객체 자동 생성)
         private readonly postsRepository: Repository<PostsModel>, // 서비스 내부에서 사용할 필드(클래스 안 변수) 선언
         private readonly commonService: CommonService,
+        private readonly configService: ConfigService,
     ) {}
     async getAllPosts() {
         return this.postsRepository.find({
@@ -79,7 +81,9 @@ export class PostsService {
         const lastItem = posts.length > 0 && posts.length === dto.take ? posts[posts.length-1] : null;
         // count: 응답 데이터 개수
         // next: 다음 요청에 사용할 url
-        const nextUrl = lastItem && new URL(`${PROTOCOL}://${HOST}/posts`);
+        const protocol = this.configService.get<string>(ENV_PROTOCOL_KEY);
+        const host = this.configService.get<string>(ENV_HOST_KEY)
+        const nextUrl = lastItem && new URL(`${protocol}://${host}/posts`);
         if (nextUrl) {
             for (const key of Object.keys(dto)) {
                 if (dto[key]) {
@@ -107,7 +111,7 @@ export class PostsService {
         return post
     }
 
-    async createPost(authorId: number, postDto: CreatePostDto) {
+    async createPost(authorId: number, postDto: CreatePostDto, image?: string) {
         // 1) create 저장할 객체 생성
         // 2) save 객체를 저장
         const post = this.postsRepository.create({
@@ -115,6 +119,7 @@ export class PostsService {
                 id: authorId,
             },
             ...postDto,
+            image,
             likeCount: 0,
             commentCount: 0,
         })

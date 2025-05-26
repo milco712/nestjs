@@ -4,10 +4,15 @@ import {FindManyOptions, FindOptionsOrder, Repository} from "typeorm";
 import {BaseModel} from "./entities/base.entity";
 import {FindOptionsWhere} from "typeorm/find-options/FindOptionsWhere";
 import {FILTER_MAPPER} from "./const/filter-mapper.const";
-import {HOST, PROTOCOL} from "./const/env.const";
+import {ConfigService} from "@nestjs/config";
+import {ENV_HOST_KEY, ENV_PROTOCOL_KEY} from "./const/env-keys.const";
 
 @Injectable()
 export class CommonService {
+    constructor(
+        private readonly configService: ConfigService
+    ) {
+    }
     paginate<T extends BaseModel>(
         dto: PaginatePostDto,
         repository: Repository<T>,
@@ -51,7 +56,9 @@ export class CommonService {
         });
         // cursor: { after: 마지막 id} ex 가져온 12개 중 12번째
         const lastItem = results.length > 0 && results.length === dto.take ? results[results.length-1] : null;
-        const nextUrl = lastItem && new URL(`${PROTOCOL}://${HOST}/${path}`);
+        const protocol = this.configService.get<string>(ENV_PROTOCOL_KEY);
+        const host = this.configService.get<string>(ENV_HOST_KEY)
+        const nextUrl = lastItem && new URL(`${protocol}://${host}/${path}`);
         if (nextUrl) {
             for (const key of Object.keys(dto)) {
                 if (dto[key]) {
@@ -124,23 +131,28 @@ export class CommonService {
     }
     private parseWhereFilter<T extends BaseModel>(key: string, value: any):
         FindOptionsWhere<T> | FindOptionsOrder<T> {
-            const options: FindOptionsWhere<T> = {}
-            const split = key.split('__'); // ['where','id','more_than'] or ['where','id']
-            if (split.length !== 2 && split.length !== 3) {
-                throw new BadRequestException(`__로 split했을 때 길이가 2 또는 3이어야 합니다 - 문제되는 키 ${key}`)
+        //undefined 값을 가진 LessThan, MoreThan 등은 절대 쿼리 조건으로 들어가면 안 됨!!
+        // WHERE id < NULL  --> 조건이 항상 false가 되어 결과 없음
+        if (value === undefined || value === null || value === '') {
+            return {};
+        }
+        const options: FindOptionsWhere<T> = {}
+        const split = key.split('__'); // ['where','id','more_than'] or ['where','id']
+        if (split.length !== 2 && split.length !== 3) {
+            throw new BadRequestException(`__로 split했을 때 길이가 2 또는 3이어야 합니다 - 문제되는 키 ${key}`)
+        }
+        // where__id = 3
+        if (split.length === 2) { // ['where', 'id']
+            const [_, field] = split; // field -> id
+            options[field] = value // {id: 3}
+        } else {
+            const [_, field, operator] = split;
+            if(operator === 'i_like'){
+                options[field] = FILTER_MAPPER[operator](`%${value}%`) // value가 숫자, 문자, 불리언 등으로 예상하는데 undefined나 null이 들어오면 문제가 발생
+            }else{
+                options[field] = FILTER_MAPPER[operator](value);
             }
-            // where__id = 3
-            if (split.length === 2) { // ['where', 'id']
-                const [_, field] = split; // field -> id
-                options[field] = value // {id: 3}
-            } else {
-                const [_, field, operator] = split;
-                if(operator === 'i_like'){
-                    options[field] = FILTER_MAPPER[operator](`%${value}%`)
-                }else{
-                    options[field] = FILTER_MAPPER[operator](value);
-                }
-            }
-            return options;
+        }
+        return options;
     }
 }
