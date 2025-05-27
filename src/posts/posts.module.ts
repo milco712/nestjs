@@ -23,28 +23,7 @@ import {v4 as uuid} from 'uuid';
       AuthModule,
       UsersModule,
       CommonModule,
-      MulterModule.register({
-          limits: {
-              fileSize: 10000000, // 바이트
-          },
-          fileFilter: (req, file, cb) => {
-             const ext = path.extname(file.originalname);
-             if (ext !== '.jpg' && ext !== '.jpeg' && ext !== '.png') {
-                 return cb(
-                     new BadRequestException('jpg, jpeg, png 파일만 업로드 가능합니다.'), false
-                 )
-             }
-             return cb(null, true)
-          },
-          storage: multer.diskStorage({
-              destination: (req, file, cb) => {
-                  cb(null, POST_IMAGE_PATH);// 에러, 파일 업로드할 위치
-              },
-              filename: (req, file, cb) => {
-                  cb(null, `${uuid()}${path.extname(file.originalname)}`); // 에러,
-              }
-          })
-      })
+
   ],
   controllers: [PostsController],
   providers: [PostsService, AuthService, UsersService],

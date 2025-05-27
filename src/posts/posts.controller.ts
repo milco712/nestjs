@@ -1,5 +1,6 @@
 import {
-  Body, ClassSerializerInterceptor,
+  Body,
+  ClassSerializerInterceptor,
   Controller,
   Delete,
   Get,
@@ -7,19 +8,21 @@ import {
   ParseIntPipe,
   Patch,
   Post,
-  Put, Query,
-  Request, UploadedFile,
+  Put,
+  Query,
+  Request,
+  UploadedFile,
   UseGuards,
-  UseInterceptors
+  UseInterceptors,
 } from '@nestjs/common';
 import { PostsService } from './posts.service';
-import {AccessTokenGuard} from "../auth/guard/bearer-token.guard";
-import {UsersModel} from "../users/entities/users.entity";
-import {User} from "../users/decorator/user.decorator";
-import {CreatePostDto} from "./dto/create-post.dto";
-import {UpdatePostDto} from "./dto/update-post.dto";
-import {PaginatePostDto} from "./dto/paginate-post.dto";
-import {FileInterceptor} from "@nestjs/platform-express";
+import { AccessTokenGuard } from '../auth/guard/bearer-token.guard';
+import { UsersModel } from '../users/entities/users.entity';
+import { User } from '../users/decorator/user.decorator';
+import { CreatePostDto } from './dto/create-post.dto';
+import { UpdatePostDto } from './dto/update-post.dto';
+import { PaginatePostDto } from './dto/paginate-post.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('posts')
 export class PostsController {
@@ -27,33 +30,27 @@ export class PostsController {
   constructor(private readonly postsService: PostsService) {}
 
   @Get()
-  getPosts(
-      @Query() query: PaginatePostDto
-  ) {
-    return this.postsService.paginatePosts(query)
+  getPosts(@Query() query: PaginatePostDto) {
+    return this.postsService.paginatePosts(query);
   }
 
   @Post('random')
   @UseGuards(AccessTokenGuard)
-  async postPostsRandom(@User('id') userId: number,) {
-    await this.postsService.generatePosts(userId)
+  async postPostsRandom(@User('id') userId: number) {
+    await this.postsService.generatePosts(userId);
     return true;
   }
 
   @Get(':id')
   getPost(@Param('id', ParseIntPipe) id: number) {
-    return this.postsService.getPostById(id)
+    return this.postsService.getPostById(id);
   }
 
   @Post()
   @UseGuards(AccessTokenGuard)
-  @UseInterceptors(FileInterceptor('image'))
-  postPosts(
-      @User('id') userId: number,
-      @Body() body: CreatePostDto,
-      @UploadedFile() file?: Express.Multer.File,
-  ) {
-    return this.postsService.createPost(userId, body, file?.filename)
+  async postPosts(@User('id') userId: number, @Body() body: CreatePostDto) {
+    await this.postsService.createPostImage(body);
+    return this.postsService.createPost(userId, body);
   }
 
   @Patch(':id')
@@ -61,11 +58,11 @@ export class PostsController {
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdatePostDto,
   ) {
-    return this.postsService.updatePost(id, body)
+    return this.postsService.updatePost(id, body);
   }
 
   @Delete(':id')
   deletePost(@Param('id', ParseIntPipe) id: number) {
-    return this.postsService.deletePost(id)
+    return this.postsService.deletePost(id);
   }
 }
