@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { LessThan, MoreThan, Repository } from 'typeorm';
+import { LessThan, MoreThan, QueryRunner, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PostsModel } from './entities/posts.entity';
 import { CreatePostDto } from './dto/create-post.dto';
@@ -21,18 +21,25 @@ import {
 import { basename, join } from 'node:path';
 import { promises } from 'fs';
 import * as process from 'node:process';
+import { CreatePostImageDto } from './image/dto/create-image.dto';
+import { ImageModel } from '../common/entities/image.entity';
+import { DEFAULT_POST_FIND_OPTIONS } from './const/default-post-find-options.const';
+import { async } from 'rxjs';
 
 @Injectable()
 export class PostsService {
   constructor(
     @InjectRepository(PostsModel) // db와 연결된 레포지토리(도구) 주입(필요 객체 자동 생성)
     private readonly postsRepository: Repository<PostsModel>, // 서비스 내부에서 사용할 필드(클래스 안 변수) 선언
+    @InjectRepository(ImageModel)
+    private readonly imageRepository: Repository<ImageModel>,
     private readonly commonService: CommonService,
     private readonly configService: ConfigService,
   ) {}
+
   async getAllPosts() {
     return this.postsRepository.find({
-      relations: ['author'],
+      ...DEFAULT_POST_FIND_OPTIONS,
     });
   }
 
@@ -41,6 +48,7 @@ export class PostsService {
       await this.createPost(userId, {
         title: `임의로 만들 제목 ${i}`,
         content: `임의로 만든 내용 ${i}`,
+        images: [],
       });
     }
   }
@@ -55,7 +63,7 @@ export class PostsService {
       dto,
       this.postsRepository,
       {
-        relations: ['author'],
+        ...DEFAULT_POST_FIND_OPTIONS,
       },
       'posts',
     );
@@ -126,8 +134,8 @@ export class PostsService {
 
   async getPostById(id: number) {
     const post = await this.postsRepository.findOne({
+      ...DEFAULT_POST_FIND_OPTIONS,
       where: { id },
-      relations: ['author'],
     });
     if (!post) {
       throw new NotFoundException('Post not found');
@@ -135,43 +143,36 @@ export class PostsService {
     return post;
   }
 
-  async createPostImage(dto: CreatePostDto) {
-    // dto의 이미지 이름을 기반으로 파일 경로 생성
-    const tempFilePath = join(TEMP_FOLDER_PATH, dto.image!);
-    try {
-      await promises.access(tempFilePath); // 파일 존재하는지 확인
-    } catch (e) {
-      throw new BadRequestException('존재하지 않는 파일입니다.');
-    }
-    const fileName = basename(tempFilePath); // 파일 이름만 추출
-
-    const newPath = join(POST_IMAGE_PATH, fileName); // 새로 이동할 포스트 폴더 경로
-
-    await promises.rename(tempFilePath, newPath); // 경로 옮기기
-
-    return true;
+  getRepository(qr?: QueryRunner) {
+    return qr
+      ? qr.manager.getRepository<PostsModel>(PostsModel)
+      : this.postsRepository;
   }
 
-  async createPost(authorId: number, postDto: CreatePostDto) {
+  async createPost(authorId: number, postDto: CreatePostDto, qr?: QueryRunner) {
     // 1) create 저장할 객체 생성
     // 2) save 객체를 저장
-    const post = this.postsRepository.create({
+    const repository = this.getRepository(qr);
+    const post = repository.create({
       author: {
         // relation이기에 객체 상태
         id: authorId,
       },
       ...postDto,
+      images: [],
       likeCount: 0,
       commentCount: 0,
     });
-    return this.postsRepository.save(post);
+    return repository.save(post);
   }
 
   async updatePost(postId: number, postDto: UpdatePostDto) {
     const title = postDto.title;
     const content = postDto.content;
     // save 1) 데이터가 존재하지 않으면 새로 생성 2) 데이터가 존재하면 데이터를 업데이트
-    const post = await this.postsRepository.findOne({ where: { id: postId } });
+    const post = await this.postsRepository.findOne({
+      where: { id: postId },
+    });
     if (!post) {
       throw new NotFoundException('Post not found');
     }
@@ -185,7 +186,9 @@ export class PostsService {
   }
 
   async deletePost(postId: number) {
-    const post = await this.postsRepository.findOne({ where: { id: postId } });
+    const post = await this.postsRepository.findOne({
+      where: { id: postId },
+    });
     if (!post) {
       throw new NotFoundException('Post not found');
     }

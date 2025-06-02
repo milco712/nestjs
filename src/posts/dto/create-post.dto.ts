@@ -3,7 +3,9 @@ import { PickType } from '@nestjs/mapped-types';
 import { PostsModel } from '../entities/posts.entity';
 
 export class CreatePostDto extends PickType(PostsModel, ['title', 'content']) {
-  @IsString()
+  @IsString({
+    each: true,
+  })
   @IsOptional()
-  image?: string;
+  images: string[] = [];
 }
