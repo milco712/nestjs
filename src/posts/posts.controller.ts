@@ -25,8 +25,11 @@ import { UpdatePostDto } from './dto/update-post.dto';
 import { PaginatePostDto } from './dto/paginate-post.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ImageModelType } from '../common/entities/image.entity';
-import { DataSource } from 'typeorm';
+import { DataSource, QueryRunner as QR } from 'typeorm';
 import { PostImagesService } from './image/images.service';
+import { LogInterceptor } from '../common/interceptor/log.interceptor';
+import { TransactionInterceptor } from '../common/interceptor/transaction.interceptor';
+import { QueryRunner } from '../common/decorator/query-runner.decorator';
 
 @Controller('posts')
 export class PostsController {
@@ -38,6 +41,7 @@ export class PostsController {
   ) {}
 
   @Get()
+  @UseInterceptors(LogInterceptor)
   getPosts(@Query() query: PaginatePostDto) {
     return this.postsService.paginatePosts(query);
   }
@@ -56,38 +60,27 @@ export class PostsController {
 
   @Post()
   @UseGuards(AccessTokenGuard)
-  async postPosts(@User('id') userId: number, @Body() body: CreatePostDto) {
-    // 트랜젝션과 관련된 모든 쿼리를 담당할 쿼리 러너 연결
-    const qr = this.dataSource.createQueryRunner();
-    await qr.connect();
-    // 쿼리 러너에서 트랜젝션 시작 - 트랜젝션 안에서 디비 액션 실행
-    await qr.startTransaction();
+  @UseInterceptors(TransactionInterceptor)
+  async postPosts(
+    @User('id') userId: number,
+    @Body() body: CreatePostDto,
+    @QueryRunner() qr: QR,
+  ) {
     // 로직 실행
-    try {
-      const post = await this.postsService.createPost(userId, body, qr);
+    const post = await this.postsService.createPost(userId, body, qr);
 
-      // throw new InternalServerErrorException();
-
-      for (let i = 0; i < body.images.length; i++) {
-        await this.postImagesService.createPostImage(
-          {
-            post,
-            order: i,
-            path: body.images[i],
-            type: ImageModelType.POST_IMAGE,
-          },
-          qr,
-        );
-      }
-      await qr.commitTransaction();
-      await qr.release();
-      return this.postsService.getPostById(post.id);
-    } catch (e) {
-      // 어떤 에러든 트랜젝션을 원래 상태로 되돌리고 종료
-      await qr.rollbackTransaction();
-      await qr.release();
-      // throw new InternalServerErrorException('error!!!');
+    for (let i = 0; i < body.images.length; i++) {
+      await this.postImagesService.createPostImage(
+        {
+          post,
+          order: i,
+          path: body.images[i],
+          type: ImageModelType.POST_IMAGE,
+        },
+        qr,
+      );
     }
+    return this.postsService.getPostById(post.id, qr);
   }
 
   @Patch(':id')
